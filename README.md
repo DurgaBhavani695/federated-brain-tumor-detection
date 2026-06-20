@@ -73,6 +73,100 @@ This starts the FastAPI server on `http://127.0.0.1:8000` and automatically open
 
 ---
 
+## 📊 System Architecture & End-to-End Workflow
+
+Below is the complete sequence of operations showing how parameters and data flow from initialization to diagnostic prediction:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User (Web Dashboard)
+    participant UI as Browser UI (app.js)
+    participant WS as WebSocket Connection
+    participant Server as FastAPI Server (server.py)
+    participant FL as FL Coordinator (federated.py)
+    participant DP as Privacy Shield (model.py)
+    participant Clients as Hospital Clients (A, B, C)
+    
+    %% PHASE 1: DATA SETUP
+    rect rgb(20, 24, 46)
+        Note over User, Clients: Phase 1: Local Dataset Setup
+        User->>UI: Click "Generate Dataset"
+        UI->>Server: POST /api/generate-data
+        Server->>FL: generate_data()
+        Note over FL: Generate synthetic 2D MRI slices<br/>(skull, brain lobes, ventricles, noise)<br/>skewed for Non-IID hospitals
+        FL->>Server: Complete
+        Server-->>UI: Response: started
+        FL->>WS: Broadcast status: data_generated
+        WS-->>UI: Update client cards (dataset sizes)
+    end
+
+    %% PHASE 2: FL TRAINING
+    rect rgb(30, 34, 56)
+        Note over User, Clients: Phase 2: Federated Training Rounds Loop
+        User->>UI: Adjust Hyperparameters & Click "Start Training"
+        UI->>Server: POST /api/start-training
+        Server->>FL: start_training() in background thread
+        FL->>WS: Broadcast: init (Round 0 baseline test accuracy)
+        
+        loop For Round 1 to N
+            FL->>WS: Broadcast: round_start
+            UI->>UI: Animate weights download Server -> Clients
+            
+            loop For Each Hospital Client (A, B, C)
+                FL->>Clients: Download global weights (W_global)
+                FL->>WS: Broadcast: client_start (Hospital training...)
+                UI->>UI: Set client card status to "Training..."
+                
+                Note over Clients: Train model locally for E epochs<br/>using local MRI slices
+                Clients->>FL: Local trained weights (W_local)
+                
+                %% Privacy Shield
+                FL->>DP: Apply Differential Privacy
+                Note over DP: 1. Delta: dW = W_local - W_global<br/>2. L2 Clipping: Clip dW to threshold C<br/>3. Noise: Add Gaussian noise N(0, σ²C²)
+                DP-->>FL: return W_protected
+                
+                FL->>WS: Broadcast: client_complete
+                UI->>UI: Animate weights upload Client -> Server
+            end
+            
+            Note over FL: Aggregator Server runs FedAvg:<br/>Weighted average of W_protected weights
+            FL->>FL: Update W_global with aggregated weights
+            Note over FL: Evaluate W_global on global test set
+            FL->>WS: Broadcast: round_complete (Accuracy, Loss)
+            UI->>UI: Plot new points on Chart.js graphs
+        end
+        FL->>WS: Broadcast: status: completed
+    end
+
+    %% PHASE 3: INFERENCE PLAYGROUND
+    rect rgb(15, 30, 45)
+        Note over User, Clients: Phase 3: Diagnostic Playground (Inference)
+        User->>UI: Select sample MRI or generate random slice
+        UI->>Server: POST /api/generate-random-mri
+        Server-->>UI: Return image URL
+        User->>UI: Click "Analyze MRI Slice"
+        UI->>UI: Start glowing scanner sweep animation
+        UI->>Server: POST /api/predict-image (image_path)
+        Server->>FL: run_single_inference()
+        Note over FL: Feed image to global CNN model
+        FL-->>Server: Return Probability
+        Server-->>UI: Diagnosis: Tumor | Probability Score
+        UI->>UI: Stop scanner, update outcome card,<br/>and set radial progress bar
+    end
+```
+
+### Detailed Execution Steps:
+1. **Decentralized Data Generation**: MRI scans are procedurally generated and stored in isolated client folders (`data/hospital_a/`, etc.). No client has access to another hospital's local directory.
+2. **Global Model Dispatch**: In each federated round, the server serializes the global model weights ($W_{\text{global}}$) and broadcasts them to all clients.
+3. **Local Training**: Clients download the weights, initialize a local PyTorch training loop on their own MRI scans, and generate updated parameters ($W_{\text{local}}$).
+4. **Local Differential Privacy (LDP) Shielding**: The client calculates the parameter update delta, clips its $L_2$ norm to a clipping bound $C$ to restrict outlier influence, adds noise calibrated to the parameter shape and noise multiplier $\sigma$, and returns the private weights to the server.
+5. **Federated Averaging (FedAvg)**: The server averages the privacy-protected updates from all clients (weighted by local sample counts) to form the new global model.
+6. **Telemetry Streaming**: Real-time evaluation results on a separate test set are piped over WebSockets to update the dashboard charts and topology canvas.
+7. **Sandbox Inference Playground**: Users select or upload an MRI slice, triggering the scanner sweep animation. The global model outputs the tumor probability score and updates the UI gauge and diagnosis card.
+
+---
+
 ## 🧠 Core Mathematical Concepts
 
 ### Federated Averaging (FedAvg)
