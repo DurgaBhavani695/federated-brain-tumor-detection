@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy-Preserving Federated Learning - Brain Tumor Detection</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon"></div>
+                <div class="logo-text">
+                    <h1>CORTEX-NET</h1>
+                    <span>Privacy-Preserving FL Platform</span>
+                </div>
+            </div>
+            <div class="status-bar">
+                <span class="status-label">System Status:</span>
+                <span id="system-status-badge" class="status-badge status-idle">IDLE</span>
+            </div>
+            <div class="control-actions">
+                <button id="btn-generate-data" class="btn btn-secondary">Generate Dataset</button>
+                <button id="btn-start" class="btn btn-primary">Start Training</button>
+                <button id="btn-stop" class="btn btn-danger" disabled>Stop Training</button>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Row 1: Configurations -->
+            <section class="dashboard-card config-section">
+                <div class="card-header">
+                    <h2 class="card-title">Federated Learning Hyperparameters</h2>
+                    <span class="card-subtitle">Adjust parameters before launching simulation</span>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="input-rounds">Federated Rounds</label>
+                            <div class="range-container">
+                                <input type="range" id="input-rounds" min="5" max="30" value="12">
+                                <span class="range-val" id="val-rounds">12</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-epochs">Local Training Epochs</label>
+                            <div class="range-container">
+                                <input type="range" id="input-epochs" min="1" max="10" value="3">
+                                <span class="range-val" id="val-epochs">3</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="input-lr">Learning Rate</label>
+                            <div class="range-container">
+                                <input type="range" id="input-lr" min="0.001" max="0.02" step="0.001" value="0.005">
+                                <span class="range-val" id="val-lr">0.005</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="input-distribution">Data Distribution Split</label>
+                            <select id="input-distribution" class="form-control">
+                                <option value="non_iid">Non-IID (Hospital skew: 15%, 50%, 85%)</option>
+                                <option value="iid">IID (Even balanced split: 50% each)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Differential Privacy Configurations -->
+                    <div class="dp-header">
+                        <h3 class="dp-title">Differential Privacy (LDP)</h3>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-dp" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div id="dp-config-panel" class="dp-config-panel">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="input-noise">Noise Multiplier (&sigma;)</label>
+                                <div class="range-container">
+                                    <input type="range" id="input-noise" min="0.01" max="0.5" step="0.01" value="0.10">
+                                    <span class="range-val" id="val-noise">0.10</span>
+                                </div>
+                                <span class="form-help">Calibrates Gaussian noise added to weights</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="input-clip">Gradient Clipping Bound (C)</label>
+                                <div class="range-container">
+                                    <input type="range" id="input-clip" min="0.1" max="5.0" step="0.1" value="1.0">
+                                    <span class="range-val" id="val-clip">1.0</span>
+                                </div>
+                                <span class="form-help">Bounds the $L_2$ norm of client update</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Row 1 Right: Hospital Nodes Info -->
+            <section class="dashboard-card hospitals-section">
+                <div class="card-header">
+                    <h2 class="card-title">Hospital Clients Silos</h2>
+                    <span class="card-subtitle">Decentralized nodes hosting local datasets</span>
+                </div>
+                <div class="card-body hospital-cards-container">
+                    <!-- Client 1 -->
+                    <div class="client-card" id="card-hospital_a">
+                        <div class="client-header">
+                            <div class="client-name">
+                                <span class="client-indicator online"></span>
+                                <h3>Hospital A</h3>
+                            </div>
+                            <span class="client-type-badge">Primary Care</span>
+                        </div>
+                        <div class="client-stats">
+                            <div class="stat-row"><span class="label">Local Dataset:</span><span class="val" id="stat-ha-total">100 Slices</span></div>
+                            <div class="stat-row"><span class="label">Distribution:</span><span class="val" id="stat-ha-dist">15% Tumor / 85% Normal</span></div>
+                            <div class="stat-row"><span class="label">Val Accuracy:</span><span class="val accent-green" id="stat-ha-acc">0.0%</span></div>
+                            <div class="stat-row"><span class="label">Avg Update Norm:</span><span class="val font-mono" id="stat-ha-norm">-</span></div>
+                        </div>
+                        <div class="privacy-meter-container">
+                            <div class="meter-label"><span>Local Privacy Shield</span><span id="stat-ha-shield">DP Enabled</span></div>
+                            <div class="meter-bar"><div class="meter-fill fill-secured" id="stat-ha-shield-fill"></div></div>
+                        </div>
+                    </div>
+                    <!-- Client 2 -->
+                    <div class="client-card" id="card-hospital_b">
+                        <div class="client-header">
+                            <div class="client-name">
+                                <span class="client-indicator online"></span>
+                                <h3>Hospital B</h3>
+                            </div>
+                            <span class="client-type-badge">Neurological Ctr</span>
+                        </div>
+                        <div class="client-stats">
+                            <div class="stat-row"><span class="label">Local Dataset:</span><span class="val" id="stat-hb-total">100 Slices</span></div>
+                            <div class="stat-row"><span class="label">Distribution:</span><span class="val" id="stat-hb-dist">50% Tumor / 50% Normal</span></div>
+                            <div class="stat-row"><span class="label">Val Accuracy:</span><span class="val accent-green" id="stat-hb-acc">0.0%</span></div>
+                            <div class="stat-row"><span class="label">Avg Update Norm:</span><span class="val font-mono" id="stat-hb-norm">-</span></div>
+                        </div>
+                        <div class="privacy-meter-container">
+                            <div class="meter-label"><span>Local Privacy Shield</span><span id="stat-hb-shield">DP Enabled</span></div>
+                            <div class="meter-bar"><div class="meter-fill fill-secured" id="stat-hb-shield-fill"></div></div>
+                        </div>
+                    </div>
+                    <!-- Client 3 -->
+                    <div class="client-card" id="card-hospital_c">
+                        <div class="client-header">
+                            <div class="client-name">
+                                <span class="client-indicator online"></span>
+                                <h3>Hospital C</h3>
+                            </div>
+                            <span class="client-type-badge">Cancer Institute</span>
+                        </div>
+                        <div class="client-stats">
+                            <div class="stat-row"><span class="label">Local Dataset:</span><span class="val" id="stat-hc-total">100 Slices</span></div>
+                            <div class="stat-row"><span class="label">Distribution:</span><span class="val" id="stat-hc-dist">85% Tumor / 15% Normal</span></div>
+                            <div class="stat-row"><span class="label">Val Accuracy:</span><span class="val accent-green" id="stat-hc-acc">0.0%</span></div>
+                            <div class="stat-row"><span class="label">Avg Update Norm:</span><span class="val font-mono" id="stat-hc-norm">-</span></div>
+                        </div>
+                        <div class="privacy-meter-container">
+                            <div class="meter-label"><span>Local Privacy Shield</span><span id="stat-hc-shield">DP Enabled</span></div>
+                            <div class="meter-bar"><div class="meter-fill fill-secured" id="stat-hc-shield-fill"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Row 2 Left: Real-time network and flows visualizer -->
+            <section class="dashboard-card visualizer-section">
+                <div class="card-header">
+                    <h2 class="card-title">Federated Transfer Topology</h2>
+                    <span class="card-subtitle">Real-time parameters transfer visualization (FedAvg)</span>
+                </div>
+                <div class="card-body network-canvas-container">
+                    <canvas id="network-canvas"></canvas>
+                    <div class="network-legend">
+                        <div class="legend-item"><span class="dot server-dot"></span><span>Aggregator Server</span></div>
+                        <div class="legend-item"><span class="dot client-dot"></span><span>Hospitals</span></div>
+                        <div class="legend-item"><span class="line upload-line"></span><span>Weight Transfer (Updates)</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Row 2 Right: Real-time training metrics charts -->
+            <section class="dashboard-card charts-section">
+                <div class="card-header">
+                    <div class="tabs">
+                        <button id="tab-acc" class="tab-btn active">Global Test Accuracy</button>
+                        <button id="tab-loss" class="tab-btn">Training Loss</button>
+                    </div>
+                </div>
+                <div class="card-body chart-container">
+                    <canvas id="metrics-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- Row 3: Diagnostic Inference Sandbox -->
+            <section class="dashboard-card sandbox-section">
+                <div class="card-header">
+                    <h2 class="card-title">Diagnostic Playground & Inference Sandbox</h2>
+                    <span class="card-subtitle">Test the global federated model on MRI slices</span>
+                </div>
+                <div class="card-body sandbox-grid">
+                    <div class="sandbox-column image-selection">
+                        <h3>1. Load Brain MRI Slice</h3>
+                        <div class="select-option-block">
+                            <label>Synthetic Test Set Samples</label>
+                            <div class="image-gallery-scroll" id="gallery-samples">
+                                <p class="loading-placeholder">Generate dataset to load samples...</p>
+                            </div>
+                        </div>
+                        <div class="select-option-block">
+                            <label>Generate On-the-Fly Slice</label>
+                            <div class="btn-group-row">
+                                <button id="btn-gen-normal" class="btn btn-sm btn-secondary">Normal MRI</button>
+                                <button id="btn-gen-tumor" class="btn btn-sm btn-secondary">Tumor MRI</button>
+                            </div>
+                        </div>
+                        <div class="select-option-block">
+                            <label>Upload custom MRI image</label>
+                            <input type="file" id="file-upload" accept="image/*" class="file-input-hidden">
+                            <button id="btn-upload" class="btn btn-sm btn-outline">Choose File...</button>
+                        </div>
+                    </div>
+
+                    <div class="sandbox-column image-viewer">
+                        <h3>2. MRI Visualizer</h3>
+                        <div class="mri-frame">
+                            <div class="mri-scanner-effect" id="scanner-line"></div>
+                            <img id="mri-preview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'><rect width='128' height='128' fill='%2306070e'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23383e5c' font-family='sans-serif' font-size='10'>No Image Loaded</text></svg>" alt="MRI Slice Preview">
+                        </div>
+                        <div class="mri-meta font-mono" id="mri-meta-info">128 x 128 pixels | Gray Scale</div>
+                    </div>
+
+                    <div class="sandbox-column diagnostic-results">
+                        <h3>3. Global Model Prediction</h3>
+                        <div class="prediction-card-glow" id="prediction-outcome-card">
+                            <div class="outcome-badge-container">
+                                <span class="outcome-label">Diagnosis Result</span>
+                                <span class="outcome-value" id="diagnosis-outcome">Awaiting Image</span>
+                            </div>
+                            <div class="dial-container">
+                                <div class="radial-bar-wrapper">
+                                    <svg viewBox="0 0 36 36" class="circular-chart">
+                                        <path class="circle-bg"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        />
+                                        <path class="circle" id="radial-progress"
+                                            stroke-dasharray="0, 100"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        />
+                                        <text x="18" y="20.35" class="percentage" id="radial-pct">0%</text>
+                                    </svg>
+                                </div>
+                                <span class="probability-label">Tumor Probability Score</span>
+                            </div>
+                            <div class="diagnosis-statement" id="diagnosis-statement">
+                                Select an image and click predict to classify.
+                            </div>
+                            <button id="btn-predict" class="btn btn-primary btn-block" disabled>Analyze MRI Slice</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- System Logs Console -->
+        <footer class="app-console">
+            <div class="console-header">
+                <span class="console-title font-mono">>_ Federated Node Console Logs</span>
+                <button id="btn-clear-console" class="btn btn-sm btn-clear font-mono">Clear</button>
+            </div>
+            <div class="console-body font-mono" id="console-logs">
+                <div class="log-line system-line">[System Init] WebSockets connected. Server waiting for commands.</div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Script Entry -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

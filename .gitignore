@@ -1,0 +1,25 @@
+# Python Caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Datasets & Temp Files
+data/
+temp_inference/
+temp_test_data/
+temp_convergence_data/
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Editor Metadata
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
