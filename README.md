@@ -181,3 +181,16 @@ To ensure that the uploaded parameters $W_k$ do not leak patient MRI features, e
 2. **Noising**: Adds calibrated Gaussian noise scaled by the clip bound and noise multiplier $\sigma$:
    $$\Delta W_{\text{noised}} = \Delta W_{\text{clipped}} + \mathcal{N}(0, \sigma^2 C^2)$$
 3. **Reassembly**: Sends $W_{\text{global}} + \Delta W_{\text{noised}}$ to the coordinator.
+
+---
+
+## 📸 Dashboard Output Screenshots
+
+Here are visual previews of the running Cortex-Net dashboard:
+
+### 1. Model Configuration & Decentralized Hospital Silos
+![Dashboard Config & Clients](output_samples/dashboard_top.png)
+
+### 2. Federated Weights Transmission Topology & Telemetry Charts
+![Dashboard Topology & Charts](output_samples/dashboard_bottom.png)
+
